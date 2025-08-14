@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: agilepulse
+      TZ: ${TZ:-Europe/Paris}
+    ports:
+      - "5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./internal/repo/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agilepulse"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  app:
+    build: .
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+      JIRA_FIELDS_FILE: /config/jira_fields.json
+    volumes:
+      - ./config/jira_fields.json:/config/jira_fields.json:ro
+volumes:
+  dbdata: {}
+

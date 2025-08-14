@@ -1,0 +1,26 @@
+[
+  {"id": "customfield_10104", "name": "Epic Name", "type": "Name of Epic", "showWhenEmpty": true},
+  {"id": "summary", "name": "Summary", "type": "System field", "showWhenEmpty": false},
+  {"id": "issuetype", "name": "Issue Type", "type": "System field", "showWhenEmpty": false},
+  {"id": "reporter", "name": "Reporter", "type": "System field", "showWhenEmpty": false},
+  {"id": "components", "name": "Component/s", "type": "System field", "showWhenEmpty": false},
+  {"id": "description", "name": "Description", "type": "System field", "showWhenEmpty": false},
+  {"id": "fixVersions", "name": "Fix Version/s", "type": "System field", "showWhenEmpty": false},
+  {"id": "priority", "name": "Priority", "type": "System field", "showWhenEmpty": false},
+  {"id": "labels", "name": "Labels", "type": "System field", "showWhenEmpty": false},
+  {"id": "security", "name": "Security Level", "type": "System field", "showWhenEmpty": false},
+  {"id": "attachment", "name": "Attachment", "type": "System field", "showWhenEmpty": false},
+  {"id": "issuelinks", "name": "Linked Issues", "type": "System field", "showWhenEmpty": false},
+  {"id": "assignee", "name": "Assignee", "type": "System field", "showWhenEmpty": false},
+  {"id": "customfield_10109", "name": "Epic Link", "type": "Epic Link Relationship", "showWhenEmpty": false},
+  {"id": "customfield_10108", "name": "Sprint", "type": "Jira Sprint Field", "showWhenEmpty": false},
+  {"id": "customfield_10112", "name": "Subteam", "type": "Select List (single choice)", "showWhenEmpty": false},
+  {"id": "customfield_10110", "name": "Story Points", "type": "Number Field", "showWhenEmpty": true},
+  {"id": "customfield_10300", "name": "Extra Description", "type": "Text Field (multi-line)", "showWhenEmpty": false},
+  {"id": "customfield_10301", "name": "QA owner", "type": "Select List (multiple choices)", "showWhenEmpty": true},
+  {"id": "customfield_10404", "name": "Service", "type": "Select List (single choice)", "showWhenEmpty": true},
+  {"id": "duedate", "name": "Due Date", "type": "System field", "showWhenEmpty": false},
+  {"id": "customfield_10504", "name": "Transition Count", "type": "Number Field", "showWhenEmpty": false},
+  {"id": "customfield_11300", "name": "QA Estimation", "type": "Number Field", "showWhenEmpty": true}
+]
+
