@@ -11,6 +11,19 @@ curl http://localhost:8080/healthz
 curl -X POST http://localhost:8080/admin/run
 ```
 
+## Local development helpers
+
+- Makefile (optional shortcuts):
+  - `make build`: build the app container
+  - `make up` / `make down`: start/stop the stack
+  - `make logs`: follow app logs
+  - `make test-docker`: run `go test` inside a clean Go container
+  - `make smoke`: run the smoke test script below
+
+- Smoke test script (`scripts/smoke.sh`):
+  - Brings up the stack, checks `/healthz`, triggers `/admin/run`, then prints `/admin/last-run`.
+  - Use for a quick end-to-end sanity check.
+
 ### Railway deployment (quick)
 
 - Set environment variables in Railway (copy from `.env.example`). Ensure:
