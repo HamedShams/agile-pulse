@@ -10,15 +10,15 @@ import (
     "syscall"
     "time"
 
-    "github.com/example/agile-pulse/internal/config"
-    applog "github.com/example/agile-pulse/internal/logger"
-    "github.com/example/agile-pulse/internal/repo"
-    apphttp "github.com/example/agile-pulse/internal/http"
-    "github.com/example/agile-pulse/internal/jobs"
-    "github.com/example/agile-pulse/internal/adapters/jira"
-    "github.com/example/agile-pulse/internal/adapters/openai"
-    "github.com/example/agile-pulse/internal/adapters/telegram"
-    "github.com/example/agile-pulse/internal/services"
+    "github.com/HamedShams/agile-pulse/internal/config"
+    applog "github.com/HamedShams/agile-pulse/internal/logger"
+    "github.com/HamedShams/agile-pulse/internal/repo"
+    apphttp "github.com/HamedShams/agile-pulse/internal/http"
+    "github.com/HamedShams/agile-pulse/internal/jobs"
+    "github.com/HamedShams/agile-pulse/internal/adapters/jira"
+    "github.com/HamedShams/agile-pulse/internal/adapters/openai"
+    "github.com/HamedShams/agile-pulse/internal/adapters/telegram"
+    "github.com/HamedShams/agile-pulse/internal/services"
 )
 
 func main() {

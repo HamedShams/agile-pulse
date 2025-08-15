@@ -5,7 +5,7 @@ package http
 import (
     "context"
     "github.com/gin-gonic/gin"
-    "github.com/example/agile-pulse/internal/config"
+    "github.com/HamedShams/agile-pulse/internal/config"
     "github.com/rs/zerolog"
 )
 

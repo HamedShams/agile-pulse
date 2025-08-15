@@ -3,7 +3,7 @@ package services
 import (
     "testing"
     "time"
-    "github.com/example/agile-pulse/internal/domain"
+    "github.com/HamedShams/agile-pulse/internal/domain"
 )
 
 func TestRedactPII_MasksCommonPatternsAndAliasesAuthors(t *testing.T) {

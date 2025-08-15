@@ -8,8 +8,8 @@ import (
     "strings"
     "time"
 
-    "github.com/example/agile-pulse/internal/config"
-    "github.com/example/agile-pulse/internal/domain"
+    "github.com/HamedShams/agile-pulse/internal/config"
+    "github.com/HamedShams/agile-pulse/internal/domain"
     "github.com/jackc/pgx/v5"
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rs/zerolog"
@@ -526,7 +526,6 @@ type IssueCandidate struct {
     Type      string
     Priority  string
     Status    string
-    Labels    []string
     UpdatedAt *time.Time
     DoneAt    *time.Time
 }
@@ -535,7 +534,7 @@ type IssueCandidate struct {
 func (r *Repository) ListIssueCandidates(ctx context.Context, since time.Time) ([]IssueCandidate, error) {
     rows, err := r.db.Pool.Query(ctx, `
         SELECT id, key, COALESCE(type,''), COALESCE(priority,''), COALESCE(status_last,''),
-               COALESCE(labels, '{}'), updated_at_jira, done_at
+               updated_at_jira, done_at
         FROM issues
         WHERE (updated_at_jira IS NOT NULL AND updated_at_jira >= $1)
            OR (done_at IS NOT NULL AND done_at >= $1)
@@ -545,7 +544,7 @@ func (r *Repository) ListIssueCandidates(ctx context.Context, since time.Time) (
     var out []IssueCandidate
     for rows.Next() {
         var ic IssueCandidate
-        if err := rows.Scan(&ic.ID, &ic.Key, &ic.Type, &ic.Priority, &ic.Status, &ic.Labels, &ic.UpdatedAt, &ic.DoneAt); err != nil { return nil, err }
+        if err := rows.Scan(&ic.ID, &ic.Key, &ic.Type, &ic.Priority, &ic.Status, &ic.UpdatedAt, &ic.DoneAt); err != nil { return nil, err }
         out = append(out, ic)
     }
     return out, nil

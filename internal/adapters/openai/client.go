@@ -9,7 +9,7 @@ import (
     "net/http"
     "strings"
 
-    "github.com/example/agile-pulse/internal/config"
+    "github.com/HamedShams/agile-pulse/internal/config"
     "github.com/rs/zerolog"
 )
 
@@ -21,11 +21,17 @@ type Client struct {
 }
 
 func NewClient(cfg config.Config, log zerolog.Logger) *Client {
-    return &Client{ key: cfg.OpenAIKey, model: cfg.OpenAIModel, http: &http.Client{ Timeout: cfg.OpenAITimeout }, log: log }
+    model := cfg.OpenAIModel
+    if strings.HasPrefix(strings.ToLower(model), "o3") || strings.TrimSpace(model) == "" {
+        // Fallback to chat-completions compatible model
+        model = "gpt-4.1-mini"
+    }
+    return &Client{ key: cfg.OpenAIKey, model: model, http: &http.Client{ Timeout: cfg.OpenAITimeout }, log: log }
 }
 
 func (c *Client) ExtractIssue(ctx context.Context, payload any) (map[string]any, error) {
     if strings.TrimSpace(c.key) == "" { return nil, errors.New("openai: missing key") }
+    c.log.Info().Str("model", c.model).Msg("openai ExtractIssue call")
     body := map[string]any{
         "model": c.model,
         "messages": []map[string]string{
@@ -51,6 +57,7 @@ func (c *Client) ExtractIssue(ctx context.Context, payload any) (map[string]any,
 }
 func (c *Client) Summarize(ctx context.Context, kpis map[string]float64, findings []map[string]any) (string, error) {
     if strings.TrimSpace(c.key) == "" { return "", errors.New("openai: missing key") }
+    c.log.Info().Str("model", c.model).Msg("openai Summarize call")
     payload := map[string]any{"kpis": kpis, "findings": findings}
     body := map[string]any{
         "model": c.model,

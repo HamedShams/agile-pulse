@@ -4,8 +4,8 @@ import (
     "context"
     "time"
 
-    "github.com/example/agile-pulse/internal/config"
-    "github.com/example/agile-pulse/internal/repo"
+    "github.com/HamedShams/agile-pulse/internal/config"
+    "github.com/HamedShams/agile-pulse/internal/repo"
     "github.com/robfig/cron/v3"
     "github.com/rs/zerolog"
 )

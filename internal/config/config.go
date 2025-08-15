@@ -120,7 +120,7 @@ func Load() Config {
         JiraFieldsFile:  getenv("JIRA_FIELDS_FILE", "/config/jira_fields.json"),
 
         OpenAIKey:     getenv("OPENAI_API_KEY", ""),
-        OpenAIModel:   getenv("OPENAI_MODEL", "o3-mini"),
+        OpenAIModel:   getenv("OPENAI_MODEL", "gpt-4.1-mini"),
         OpenAITimeout: dur("OPENAI_TIMEOUT", 15*time.Second),
 
         TelegramToken:         getenv("TELEGRAM_BOT_TOKEN", ""),

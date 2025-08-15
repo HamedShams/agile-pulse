@@ -15,7 +15,7 @@ import (
     "strings"
     "time"
 
-    "github.com/example/agile-pulse/internal/config"
+    "github.com/HamedShams/agile-pulse/internal/config"
     "github.com/rs/zerolog"
 )
 

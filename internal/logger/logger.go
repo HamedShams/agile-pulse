@@ -4,7 +4,7 @@ import (
     "os"
     "time"
 
-    "github.com/example/agile-pulse/internal/config"
+    "github.com/HamedShams/agile-pulse/internal/config"
     "github.com/rs/zerolog"
     "github.com/rs/zerolog/log"
 )

@@ -1,4 +1,4 @@
-module github.com/example/agile-pulse
+module github.com/HamedShams/agile-pulse
 
 go 1.23
 

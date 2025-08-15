@@ -12,9 +12,9 @@ import (
     "strings"
     "time"
 
-    "github.com/example/agile-pulse/internal/config"
-    "github.com/example/agile-pulse/internal/domain"
-    "github.com/example/agile-pulse/internal/repo"
+    "github.com/HamedShams/agile-pulse/internal/config"
+    "github.com/HamedShams/agile-pulse/internal/domain"
+    "github.com/HamedShams/agile-pulse/internal/repo"
     "github.com/rs/zerolog"
 )
 
@@ -257,7 +257,7 @@ func (s *Service) RunWeeklyDigest(ctx context.Context) error {
         s.log.Info().Int("llm_issues", llmSelected).Int("llm_tokens_est", llmTokens).Strs("llm_keys", sel).Msg("prefilter selected for LLM")
         // I) LLM pipeline (concurrent extracts)
         var findings []map[string]any
-        if s.llm != nil && s.cfg.OpenAIKey != "" && llmSelected > 0 {
+        if s.llm != nil && strings.TrimSpace(s.cfg.OpenAIKey) != "" && llmSelected > 0 {
             type result struct{ f map[string]any; err error }
             jobs := make(chan string)
             results := make(chan result)
