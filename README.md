@@ -9,6 +9,8 @@ docker compose up --build -d
 # DB schema is applied automatically on first DB start.
 curl http://localhost:8080/healthz
 curl -X POST http://localhost:8080/admin/run
+# Jira test (3 days, raw counts to Telegram, no LLM)
+curl -X POST http://localhost:8080/admin/jira-test
 ```
 
 ## Local development helpers
@@ -53,8 +55,8 @@ curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
 Local dev defaults to `PUBLIC_BASE_URL=http://localhost:8080`.
 
 ## Layout
-- `cmd/api` — entrypoint
-- `internal/config, logger, http, jobs, domain, repo, adapters, services`
+- `cmd/api` — entrypoint and full app (single-app style)
+- `internal/repo/migrations` — SQL migrations (mounted by docker-compose)
 
 ## Config
 
