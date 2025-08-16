@@ -1,12 +1,13 @@
 module github.com/HamedShams/agile-pulse
 
-go 1.23
+go 1.22
 
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.31.0
+	github.com/openai/openai-go/v2 v2.0.2
 )
 
 require (

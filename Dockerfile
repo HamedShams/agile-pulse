@@ -4,10 +4,10 @@ ENV GOTOOLCHAIN=local \
     GIT_TERMINAL_PROMPT=0
 WORKDIR /app
 COPY go.mod go.sum ./
-COPY vendor/ ./vendor/
 COPY . .
-# Build with vendor to avoid network during build
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o /out/agile-pulse ./cmd/api
+# Build with module mode and use a reliable public proxy, fallback to direct
+ENV GOPROXY=https://goproxy.cn,direct GOSUMDB=off
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -o /out/agile-pulse ./cmd/api
 
 FROM alpine:3.20
 RUN adduser -D -u 65532 appuser && apk add --no-cache ca-certificates tzdata

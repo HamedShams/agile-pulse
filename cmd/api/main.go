@@ -9,42 +9,33 @@ import (
     "strings"
     "syscall"
     "time"
-
-    "github.com/HamedShams/agile-pulse/internal/config"
-    applog "github.com/HamedShams/agile-pulse/internal/logger"
-    "github.com/HamedShams/agile-pulse/internal/repo"
-    apphttp "github.com/HamedShams/agile-pulse/internal/http"
-    "github.com/HamedShams/agile-pulse/internal/jobs"
-    "github.com/HamedShams/agile-pulse/internal/adapters/jira"
-    "github.com/HamedShams/agile-pulse/internal/adapters/openai"
-    "github.com/HamedShams/agile-pulse/internal/adapters/telegram"
-    "github.com/HamedShams/agile-pulse/internal/services"
 )
 
 func main() {
-    cfg := config.Load()
-    log := applog.New(cfg)
-
+    cfg := Load()
+    log := newLogger(cfg)
     ctx, cancel := context.WithCancel(context.Background())
     defer cancel()
 
     // DB
-    db := repo.MustOpen(ctx, cfg, log)
+    db := MustOpen(ctx, cfg, log)
     defer db.Close()
 
     // Adapters
-    jc := jira.NewClient(cfg, log)
-    llm := openai.NewClient(cfg, log)
-    tg  := telegram.NewClient(cfg, log)
+    jc := NewJiraClient(cfg, log)
+    llm := NewOpenAIClient(cfg, log)
+    tg  := NewTelegramClient(cfg, log)
 
     // Services
-    repository := repo.NewRepository(db, log)
-    svc := services.New(cfg, log, repository, jc, llm, tg)
+    repository := NewRepository(db, log)
+    svc := NewService(cfg, log, repository, jc, llm, tg)
 
-    // Resolve boards by names on startup (cache)
+    // Resolve boards by names on startup using contains+project preference (aligned with TestJiraFetch)
     if len(cfg.JiraBoardNames) > 0 {
         ctx2, cancel2 := context.WithTimeout(ctx, 20*time.Second); defer cancel2()
-        ids, err := jc.ResolveBoardsByNames(ctx2, cfg.JiraBoardNames)
+        preferredProject := ""
+        if len(cfg.JiraProjects) > 0 { preferredProject = strings.TrimSpace(cfg.JiraProjects[0]) }
+        ids, err := svc.ResolveBoardsStartup(ctx2, preferredProject)
         if err != nil {
             log.Error().Err(err).Strs("names", cfg.JiraBoardNames).Msg("jira board resolve failed; falling back to JQL-only mode")
         } else {
@@ -53,7 +44,7 @@ func main() {
     }
 
     // HTTP server (Gin)
-    router := apphttp.NewRouter(cfg, log, svc)
+    router := newRouter(cfg, log, svc)
 
     // Register Telegram webhook only if PUBLIC_BASE_URL is HTTPS
     if cfg.TelegramWebhookSecret != "" && strings.HasPrefix(strings.ToLower(cfg.PublicBaseURL), "https://") {
@@ -70,8 +61,7 @@ func main() {
     }
 
     // Cron
-    cron := jobs.NewCron(cfg, log, svc, repository)
-    cron.Start()
+    cron := startCron(cfg, log, svc, repository)
     defer cron.Stop()
 
     // graceful shutdown
