@@ -10,7 +10,6 @@ import (
     "net/http"
     "net/url"
     "os"
-    "regexp"
     "sort"
     "strconv"
     "strings"
@@ -431,5 +430,14 @@ func optionToString(v any) string { if v==nil { return "" }; switch t := v.(type
 func sanitizeJiraText(s string) string { if s=="" { return s }; replacers := []struct{ old, new string }{{"\r\n","\n"},{"\r","\n"},{"{code}",""},{"{noformat}",""},{"{panel}",""},{"{color:#ff0000}",""},{"{color}",""}}; out := s; for _,r := range replacers { out = strings.ReplaceAll(out, r.old, r.new) }; if idx := strings.Index(out, "{code:"); idx != -1 { out = strings.ReplaceAll(out, "{code:java}", ""); out = strings.ReplaceAll(out, "{code:json}", ""); out = strings.ReplaceAll(out, "{code:sql}", "") }; return out }
 func derefTime(t *time.Time) time.Time { if t==nil { return time.Time{} }; return *t }
 func derefString(s *string) string { if s==nil { return "" }; return *s }
+func weekStart(t time.Time) time.Time { weekday := int(t.Weekday()); if weekday==0 { weekday=7 }; delta := time.Duration(weekday-1) * 24 * time.Hour; day := t.Add(-delta); return time.Date(day.Year(), day.Month(), day.Day(), 0,0,0,0, day.Location()) }
+
+// Repo helpers missing from server.go
+func (r *Repository) SeedStatusMap(ctx context.Context, boardID int64) error {
+    if boardID<=0 { return fmt.Errorf("invalid board id") }
+    pairs := [][2]string{{"Backlog","Backlog"},{"To Do","Queue"},{"ToDo","Queue"},{"In Progress","InProgress"},{"Pending","Blocked"},{"Ready4Test","Review"},{"Under Review","Review"},{"In Test","Test"},{"Ready to Deploy","Deploy"},{"Done","Done"}}
+    for _,p := range pairs { _, err := r.db.Pool.Exec(ctx, `INSERT INTO status_map(board_id, jira_status, canonical_stage) VALUES($1,$2,$3) ON CONFLICT (board_id, jira_status) DO NOTHING`, boardID, p[0], p[1]); if err != nil { return err } }
+    return nil
+}
 
 

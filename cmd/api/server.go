@@ -4,8 +4,6 @@ import (
     "context"
     "encoding/json"
     "fmt"
-    "net/http"
-    "sort"
     "strings"
     "sync"
     "time"
@@ -39,7 +37,6 @@ func (s *Service) ResolveBoardsStartup(ctx context.Context, preferredProject str
 func (s *Service) RunWeeklyDigest(ctx context.Context) error {
     if err := s.ensureBoards(ctx); err != nil { s.log.Error().Err(err).Msg("ensure boards failed") }
     if err := s.ensureFlaggedFields(ctx); err != nil { s.log.Error().Err(err).Msg("discover flagged field failed") }
-    _ = s.ensureCustomFields(ctx)
     boardsJSON, _ := json.Marshal(s.boardIDs)
     runID, err := s.repo.StartJobRun(ctx, string(boardsJSON))
     if err != nil { s.log.Error().Err(err).Msg("start job run failed") }
@@ -67,18 +64,144 @@ func (s *Service) RunOnDemandDigest(ctx context.Context, chatID int64, sinceDays
 
 func (s *Service) SendHelp(ctx context.Context, chatID int64) error {
     if chatID==0 { return nil }
-    esc := func(s string) string { repl := []string{"_","\\_","*","\\*","[","\\[",']','\\]',"(","\\(",")","\\)","~","\\~","`","\\`",">","\\>","#","\\#","+","\\+","-","\\-","=","\\=","|","\\|","{","\\{","}","\\}",".","\\.","!","\\!"}; for i:=0; i<len(repl); i+=2 { s = strings.ReplaceAll(s, repl[i], repl[i+1]) }; return s }
+    esc := func(s string) string { repl := []string{"_","\\_","*","\\*","[","\\[","]","\\]","(","\\(",")","\\)","~","\\~","`","\\`",">","\\>","#","\\#","+","\\+","-","\\-","=","\\=","|","\\|","{","\\{","}","\\}",".","\\.","!","\\!"}; for i:=0; i<len(repl); i+=2 { s = strings.ReplaceAll(s, repl[i], repl[i+1]) }; return s }
     help := esc("Agile Pulse Bot")+"\n"+esc("Weekly Jira insights with metrics + LLM-based findings.")+"\n\n"+esc("Commands:")+"\n"+esc("- /report 7d — On-demand report for the last 7 days")+"\n"+esc("- /report 30d — On-demand report for the last 30 days")+"\n"+esc("Setup: Admin configures Jira, Telegram chat IDs, and schedule.")
     return s.tg.SendMarkdownV2(ctx, chatID, help)
 }
 
 // Jira tests (brief)
 func (s *Service) TestJiraFetch(ctx context.Context) error {
-    // narrow ETL to last 3d and announce counts; re-use existing ETL which already fetches comments/history/worklogs
-    if _, err := s.runETL(ctx, 3); err != nil { return err }
-    ws := weekStart(time.Now()); metrics, _ := s.repo.ComputeWeeklyMetrics(ctx, ws, "")
-    summary := s.renderDigest(metrics, nil)
-    for _, chat := range s.cfg.TelegramChatIDs { _ = s.tg.SendMarkdownV2(ctx, chat, summary) }
+    // Fetch last 3 days issues from configured boards (or fallback to JQL) and send brief per-issue summary to Telegram (no LLM)
+    cutoff := time.Now().UTC().Add(-72 * time.Hour)
+    // ensure boards resolved
+    _ = s.ensureBoards(ctx)
+    // prepare JQL
+    jql := "updated >= -3d"
+    if len(s.cfg.JiraProjects) > 0 {
+        p := strings.TrimSpace(s.cfg.JiraProjects[0])
+        if p != "" { jql = "project=" + p + " AND " + jql }
+    }
+    // helper: count comments
+    countComments := func(key string) (int, error) {
+        total := 0
+        start := 0
+        for {
+            resAny, err := s.jira.Comments(ctx, key, start, 100)
+            if err != nil { return total, err }
+            m, _ := resAny.(map[string]any)
+            arr, _ := m["comments"].([]any)
+            if len(arr) == 0 { break }
+            total += len(arr)
+            t, _ := m["total"].(float64)
+            sa, _ := m["startAt"].(float64)
+            mr, _ := m["maxResults"].(float64)
+            if t == 0 { break }
+            next := int(sa) + int(mr)
+            if float64(next) >= t { break }
+            start = next
+        }
+        return total, nil
+    }
+    // helper: count history via expand=changelog only (as per DC server behavior)
+    countHistory := func(key string) (int, error) {
+        total := 0
+        resAny, err := s.jira.Issue(ctx, key, true)
+        if err != nil { return 0, err }
+        if m, ok := resAny.(map[string]any); ok {
+            if ch, ok := m["changelog"].(map[string]any); ok {
+                if hs, ok := ch["histories"].([]any); ok {
+                    for _, h0 := range hs {
+                        if hv, _ := h0.(map[string]any); hv != nil {
+                            if items, _ := hv["items"].([]any); ok { total += len(items) }
+                        }
+                    }
+                }
+            }
+        }
+        return total, nil
+    }
+    // helper: count recent worklogs
+    countWorklogs := func(key string) (int, error) {
+        total := 0
+        start := 0
+        for {
+            resAny, err := s.jira.Worklogs(ctx, key, start, 100)
+            if err != nil { return total, err }
+            m, _ := resAny.(map[string]any)
+            arr, _ := m["worklogs"].([]any)
+            if len(arr) == 0 { break }
+            for _, w0 := range arr {
+                if wi, _ := w0.(map[string]any); wi != nil {
+                    st := parseTimeUTC(wi["started"])
+                    if st != nil && !st.Before(cutoff) { total++ }
+                }
+            }
+            t, _ := m["total"].(float64)
+            sa, _ := m["startAt"].(float64)
+            mr, _ := m["maxResults"].(float64)
+            if t == 0 { break }
+            next := int(sa) + int(mr)
+            if float64(next) >= t { break }
+            start = next
+        }
+        return total, nil
+    }
+    // collect
+    var lines []string
+    totalIssues := 0
+    startAt := 0
+    fetchPage := func() ([]any, error) {
+        if len(s.boardIDs) > 0 {
+            res, err := s.jira.BoardIssues(ctx, s.boardIDs[0], startAt, 50, jql)
+            if err != nil { return nil, err }
+            m, _ := res.(map[string]any)
+            arr, _ := m["issues"].([]any)
+            return arr, nil
+        }
+        res, err := s.jira.Search(ctx, jql, startAt, 50)
+        if err != nil { return nil, err }
+        m, _ := res.(map[string]any)
+        arr, _ := m["issues"].([]any)
+        return arr, nil
+    }
+    for {
+        arr, err := fetchPage()
+        if err != nil { return err }
+        if len(arr) == 0 { break }
+        for _, it := range arr {
+            im, _ := it.(map[string]any)
+            if im == nil { continue }
+            key := toStrAny(im["key"]) ; totalIssues++
+            fields, _ := im["fields"].(map[string]any)
+            summary := toStrAny(fields["summary"])
+            status := ""; if st, ok := fields["status"].(map[string]any); ok { status = toStrAny(st["name"]) }
+            cc, _ := countComments(key)
+            hc, _ := countHistory(key)
+            wc, _ := countWorklogs(key)
+            lines = append(lines, fmt.Sprintf("%s | %s | %s | comments=%d history=%d worklogs=%d", key, summary, status, cc, hc, wc))
+        }
+        if len(arr) < 50 { break }
+        startAt += 50
+    }
+    header := fmt.Sprintf("[jiratest] range=3d issues=%d", totalIssues)
+    // chunk and send
+    chunks := func(items []string, max int) []string {
+        var out []string
+        cur := header
+        for _, ln := range items {
+            if len(cur)+1+len(ln) > max {
+                out = append(out, cur)
+                cur = header + "\n" + ln
+            } else {
+                cur += "\n" + ln
+            }
+        }
+        if cur != "" { out = append(out, cur) }
+        return out
+    }(lines, 3500)
+    for _, chat := range s.cfg.TelegramChatIDs {
+        for _, msg := range chunks { _ = s.tg.SendMessagePlain(ctx, chat, msg) }
+    }
     return nil
 }
 
@@ -86,7 +209,7 @@ func (s *Service) TestJiraFetchRaw(ctx context.Context, chatID int64) error { re
 
 // internals used by service
 func (s *Service) renderDigest(kpis map[string]float64, findings []map[string]any) string {
-    esc := func(in string) string { repl := []string{"_","\\_","*","\\*","[","\\[",']','\\]',"(","\\(",")","\\)","~","\\~","`","\\`",">","\\>","#","\\#","+","\\+","-","\\-","=","\\=","|","\\|","{","\\{","}","\\}",".","\\.","!","\\!"}; for i:=0; i<len(repl); i+=2 { in = strings.ReplaceAll(in, repl[i], repl[i+1]) }; return in }
+    esc := func(in string) string { repl := []string{"_","\\_","*","\\*","[","\\[","]","\\]","(","\\(",")","\\)","~","\\~","`","\\`",">","\\>","#","\\#","+","\\+","-","\\-","=","\\=","|","\\|","{","\\{","}","\\}",".","\\.","!","\\!"}; for i:=0; i<len(repl); i+=2 { in = strings.ReplaceAll(in, repl[i], repl[i+1]) }; return in }
     b := &strings.Builder{}
     fmt.Fprintf(b, "*Agile Pulse*\n")
     fmt.Fprintf(b, "Weekly summary\n\n")
@@ -98,7 +221,6 @@ func (s *Service) renderDigest(kpis map[string]float64, findings []map[string]an
     return b.String()
 }
 
-// ETL core (same behavior, shortened here to keep single-file compact)
 func (s *Service) runETL(ctx context.Context, sinceDays int) (int, error) {
     issuesScanned := 0
     baseJQL := s.cfg.JiraDefaultJQL; if baseJQL=="" { baseJQL = fmt.Sprintf("updated >= -%dd", sinceDays) }
@@ -177,7 +299,6 @@ func newRouter(cfg Config, logger zerolog.Logger, svc *Service) *gin.Engine {
     if cfg.AppEnv != "dev" { gin.SetMode(gin.ReleaseMode) }
     r := gin.New(); r.Use(gin.Recovery()); r.Use(func(c *gin.Context){ c.Next(); logger.Info().Str("m", c.Request.Method).Str("p", c.FullPath()).Int("s", c.Writer.Status()).Msg("http") })
     r.GET("/healthz", func(c *gin.Context){ c.JSON(200, gin.H{"ok": true}) })
-    r.GET("/admin/last-run", func(c *gin.Context){ lr, err := svc.GetLastRun(c.Request.Context()); if err != nil { c.JSON(500, gin.H{"error": err.Error()}); return }; c.JSON(200, lr) })
     r.POST("/admin/run", func(c *gin.Context){ go func(){ _ = svc.RunWeeklyDigest(context.Background()) }(); c.JSON(202, gin.H{"status":"queued"}) })
     r.POST("/admin/jira-test", func(c *gin.Context){ go func(){ _ = svc.TestJiraFetch(context.Background()) }(); c.JSON(202, gin.H{"status":"queued"}) })
     r.POST("/telegram/webhook", func(c *gin.Context){ telegramWebhook(cfg, logger, svc, c) })
