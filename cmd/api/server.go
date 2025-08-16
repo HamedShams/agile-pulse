@@ -199,8 +199,18 @@ func (s *Service) TestJiraFetch(ctx context.Context) error {
         if cur != "" { out = append(out, cur) }
         return out
     }(lines, 3500)
+    // Send by numeric IDs if present; fallback to usernames if configured
+    sent := false
     for _, chat := range s.cfg.TelegramChatIDs {
-        for _, msg := range chunks { _ = s.tg.SendMessagePlain(ctx, chat, msg) }
+        for _, msg := range chunks { if err := s.tg.SendMessagePlain(ctx, chat, msg); err != nil { s.log.Error().Err(err).Int64("chat", chat).Msg("telegram send failed") } }
+        sent = true
+    }
+    if !sent && len(s.cfg.TelegramChatUsernames) > 0 {
+        for _, u := range s.cfg.TelegramChatUsernames {
+            id, err := s.tg.ResolveUsername(ctx, u)
+            if err != nil { s.log.Error().Err(err).Str("username", u).Msg("resolve username failed"); continue }
+            for _, msg := range chunks { if err := s.tg.SendMessagePlain(ctx, id, msg); err != nil { s.log.Error().Err(err).Str("username", u).Int64("chat", id).Msg("telegram send failed") } }
+        }
     }
     return nil
 }
@@ -300,7 +310,7 @@ func newRouter(cfg Config, logger zerolog.Logger, svc *Service) *gin.Engine {
     r := gin.New(); r.Use(gin.Recovery()); r.Use(func(c *gin.Context){ c.Next(); logger.Info().Str("m", c.Request.Method).Str("p", c.FullPath()).Int("s", c.Writer.Status()).Msg("http") })
     r.GET("/healthz", func(c *gin.Context){ c.JSON(200, gin.H{"ok": true}) })
     r.POST("/admin/run", func(c *gin.Context){ go func(){ _ = svc.RunWeeklyDigest(context.Background()) }(); c.JSON(202, gin.H{"status":"queued"}) })
-    r.POST("/admin/jira-test", func(c *gin.Context){ go func(){ _ = svc.TestJiraFetch(context.Background()) }(); c.JSON(202, gin.H{"status":"queued"}) })
+    r.POST("/admin/jira-test", func(c *gin.Context){ go func(){ if err := svc.TestJiraFetch(context.Background()); err != nil { logger.Error().Err(err).Msg("jiratest failed") } }(); c.JSON(202, gin.H{"status":"queued"}) })
     r.POST("/telegram/webhook", func(c *gin.Context){ telegramWebhook(cfg, logger, svc, c) })
     r.POST("/telegram/webhook/:secret", func(c *gin.Context){ telegramWebhook(cfg, logger, svc, c) })
     return r
